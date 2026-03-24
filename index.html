@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Order to Cash — Supply Chain</title>
+  <script src="/vis-network.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8f9fa; color: #1a1a1a; height: 100vh; display: flex; flex-direction: column; }
+
+    header {
+      background: #fff;
+      padding: 0 20px;
+      height: 52px;
+      border-bottom: 1px solid #e8e8e8;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 10;
+    }
+    .header-left { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #888; }
+    .header-left span { color: #1a1a1a; font-weight: 500; }
+    .header-right { display: flex; gap: 8px; }
+    .btn-sm {
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      border: 1px solid #e0e0e0;
+      background: #fff;
+      cursor: pointer;
+      color: #444;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .btn-sm:hover { background: #f5f5f5; }
+
+    .main { display: flex; flex: 1; overflow: hidden; }
+
+    #graph-container { flex: 1; position: relative; background: #fff; }
+    #graph { width: 100%; height: 100%; }
+
+    .graph-controls {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      display: flex;
+      gap: 8px;
+    }
+    .ctrl-btn {
+      background: #1a1a1a;
+      color: #fff;
+      border: none;
+      padding: 7px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .ctrl-btn.light { background: #fff; color: #333; border: 1px solid #e0e0e0; }
+    .ctrl-btn:hover { opacity: 0.85; }
+
+    #legend {
+      position: absolute;
+      bottom: 20px;
+      left: 14px;
+      background: #fff;
+      border: 1px solid #e8e8e8;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 11px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    #legend .leg-item { display: flex; align-items: center; gap: 7px; color: #555; }
+    #legend .dot { width: 10px; height: 10px; border-radius: 50%; }
+
+    #node-info {
+      position: absolute;
+      bottom: 20px;
+      left: 160px;
+      background: #fff;
+      border: 1px solid #e8e8e8;
+      border-radius: 10px;
+      padding: 14px;
+      font-size: 12px;
+      max-width: 260px;
+      display: none;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    }
+    #node-info h3 { font-size: 13px; font-weight: 600; margin-bottom: 10px; color: #1a1a1a; }
+    #node-info table { width: 100%; border-collapse: collapse; }
+    #node-info td { padding: 4px 0; border-bottom: 1px solid #f0f0f0; color: #333; }
+    #node-info td:first-child { color: #888; width: 50%; font-size: 11px; }
+
+    .right-panel {
+      width: 340px;
+      display: flex;
+      flex-direction: column;
+      background: #fff;
+      border-left: 1px solid #e8e8e8;
+    }
+
+    .panel-header {
+      padding: 16px 18px 12px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .panel-header h2 { font-size: 14px; font-weight: 600; color: #1a1a1a; }
+    .panel-header p { font-size: 11px; color: #888; margin-top: 2px; }
+
+    .agent-intro {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 18px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .agent-avatar {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: #1a1a1a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .agent-name { font-size: 13px; font-weight: 500; }
+    .agent-sub { font-size: 11px; color: #888; }
+
+    #messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .msg {
+      font-size: 13px;
+      line-height: 1.6;
+      max-width: 100%;
+      word-wrap: break-word;
+    }
+    .msg.bot {
+      background: #f8f9fa;
+      border: 1px solid #efefef;
+      border-radius: 10px;
+      padding: 10px 13px;
+      color: #333;
+    }
+    .msg.bot .bullet {
+      padding: 3px 0 3px 12px;
+      border-left: 2px solid #4a6cf7;
+      margin: 4px 0;
+      font-size: 12px;
+      color: #444;
+    }
+    .msg.bot strong { color: #1a1a1a; font-weight: 600; }
+
+    .status-bar {
+      padding: 8px 18px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: #888;
+      border-top: 1px solid #f0f0f0;
+    }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; }
+
+    .suggestions {
+      padding: 8px 14px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      border-top: 1px solid #f0f0f0;
+    }
+    .suggestion-btn {
+      background: #f4f4f4;
+      border: 1px solid #e8e8e8;
+      color: #555;
+      padding: 5px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .suggestion-btn:hover { background: #4a6cf7; color: #fff; border-color: #4a6cf7; }
+
+    .input-area {
+      display: flex;
+      padding: 12px 14px;
+      gap: 8px;
+      border-top: 1px solid #f0f0f0;
+    }
+    #user-input {
+      flex: 1;
+      background: #f8f9fa;
+      border: 1px solid #e8e8e8;
+      color: #1a1a1a;
+      padding: 9px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      outline: none;
+    }
+    #user-input:focus { border-color: #4a6cf7; background: #fff; }
+    #send-btn {
+      background: #1a1a1a;
+      border: none;
+      color: #fff;
+      padding: 9px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+    }
+    #send-btn:hover { background: #333; }
+    #send-btn:disabled { background: #ccc; cursor: not-allowed; }
+
+    .typing { color: #888; font-size: 11px; padding: 4px 18px; display: flex; align-items: center; gap: 5px; }
+    .typing-dots span { animation: blink 1.2s infinite; display: inline-block; }
+    .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes blink { 0%,80%,100% { opacity: 0.2; } 40% { opacity: 1; } }
+
+
+    /* 🌙 DARK MODE */
+body.dark {
+  background: #0f172a;
+  color: #e5e7eb;
+}
+
+/* Header */
+body.dark header {
+  background: #111827;
+  border-bottom: 1px solid #1f2937;
+}
+
+/* Graph */
+body.dark #graph-container {
+  background: #020617;
+}
+
+/* Right panel */
+body.dark .right-panel {
+  background: #111827;
+  border-left: 1px solid #1f2937;
+}
+
+/* Buttons */
+body.dark .btn-sm {
+  background: #1f2937;
+  color: #e5e7eb;
+  border: 1px solid #374151;
+}
+
+/* Chat */
+body.dark .msg.bot {
+  background: #1f2937;
+  border: 1px solid #374151;
+  color: #e5e7eb;
+}
+
+/* Input */
+body.dark #user-input {
+  background: #020617;
+  border: 1px solid #374151;
+  color: #e5e7eb;
+}
+
+/* Cards */
+body.dark #legend,
+body.dark #node-info {
+  background: #111827;
+  border: 1px solid #374151;
+}
+  </style>
+</head>
+<body class="dark">
+
+<header>
+  <div class="header-left">
+    Mapping /
+    <span>Order to Cash</span>
+  </div>
+  <div class="header-right">
+    <button class="btn-sm" onclick="network && network.fit()">Fit Graph</button>
+    <button class="btn-sm" id="toggle-physics">Pause Physics</button>
+  </div>
+</header>
+
+<div class="main">
+  <div id="graph-container">
+    <div id="graph"></div>
+
+    <div class="graph-controls">
+      <button class="ctrl-btn" onclick="network && network.fit()">⊞ Fit</button>
+      <button class="ctrl-btn light" onclick="zoomIn()">＋</button>
+      <button class="ctrl-btn light" onclick="zoomOut()">－</button>
+    </div>
+
+    <div id="legend">
+      <div class="leg-item"><div class="dot" style="background:#4a6cf7"></div>Sales Order</div>
+      <div class="leg-item"><div class="dot" style="background:#22c55e"></div>Customer</div>
+      <div class="leg-item"><div class="dot" style="background:#f59e0b"></div>Delivery</div>
+      <div class="leg-item"><div class="dot" style="background:#ef4444"></div>Invoice</div>
+      <div class="leg-item"><div class="dot" style="background:#06b6d4"></div>Product</div>
+      <div class="leg-item"><div class="dot" style="background:#8b5cf6"></div>Payment</div>
+    </div>
+
+    <div id="node-info">
+      <h3 id="node-info-title"></h3>
+      <table id="node-info-table"></table>
+    </div>
+  </div>
+
+  <div class="right-panel">
+    <div class="panel-header">
+      <h2>Chat with Graph</h2>
+      <p>Order to Cash</p>
+    </div>
+
+    <div class="agent-intro">
+      <div class="agent-avatar">D</div>
+      <div>
+        <div class="agent-name">Dodge AI</div>
+        <div class="agent-sub">Graph Agent</div>
+      </div>
+    </div>
+
+    <div id="messages">
+      <div class="msg bot">Hi! I can help you analyze the <strong>Order to Cash</strong> process. Ask me anything about orders, deliveries, invoices, or payments.</div>
+    </div>
+
+    <div class="status-bar">
+      <div class="status-dot"></div>
+      Dodge AI is awaiting instructions
+    </div>
+
+    <div class="suggestions">
+      <button class="suggestion-btn" onclick="askSuggestion('Which products have the most billing documents?')">Top billed products</button>
+      <button class="suggestion-btn" onclick="askSuggestion('Show sales orders with no invoice')">Incomplete flows</button>
+      <button class="suggestion-btn" onclick="askSuggestion('List all customers and their total order amounts')">Customer totals</button>
+      <button class="suggestion-btn" onclick="askSuggestion('Which deliveries have not been billed yet?')">Unbilled deliveries</button>
+    </div>
+
+    <div class="typing" id="typing" style="display:none">
+      <div class="typing-dots"><span>●</span><span>●</span><span>●</span></div>
+      Analyzing...
+    </div>
+
+    <div class="input-area">
+      <input id="user-input" type="text" placeholder="Analyze anything" />
+      <button id="send-btn" onclick="sendMessage()">Send</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const NODE_COLORS = {
+    SalesOrder: "#4a6cf7",
+    Customer: "#22c55e",
+    Delivery: "#f59e0b",
+    Billing: "#ef4444",
+    Product: "#06b6d4",
+    Payment: "#8b5cf6"
+  };
+
+  let network = null;
+  let allNodes = new vis.DataSet();
+  let allEdges = new vis.DataSet();
+  let physicsEnabled = true;
+
+  async function loadGraph() {
+    const res = await fetch("/api/graph");
+    const data = await res.json();
+
+    const visNodes = data.nodes.map(n => ({
+      id: n.id,
+      label: n.label.replace('\n', '\n'),
+      color: {
+        background: NODE_COLORS[n.type] || "#888",
+        border: NODE_COLORS[n.type] || "#888",
+        highlight: { background: "#fff", border: NODE_COLORS[n.type] }
+      },
+      font: { color: document.body.classList.contains("dark") ? "#e5e7eb" : "#1a1a1a" },
+      // font: { color: "#1a1a1a", size: 10, face: "Arial" },
+      shape: "dot",
+      size: n.type === "Customer" ? 18 : 10,
+      properties: n.properties,
+      nodeType: n.type,
+      opacity: 0.85
+    }));
+
+    const visEdges = data.edges.map((e, i) => ({
+      id: i,
+      from: e.from,
+      to: e.to,
+      color: { color: "#b0c4f8", highlight: "#4a6cf7", opacity: 0.6 },
+      width: 1,
+      arrows: { to: { enabled: true, scaleFactor: 0.4 } },
+      smooth: { type: "continuous" }
+    }));
+
+    allNodes.add(visNodes);
+    allEdges.add(visEdges);
+
+    const container = document.getElementById("graph");
+    network = new vis.Network(container, { nodes: allNodes, edges: allEdges }, {
+      physics: {
+        enabled: true,
+        stabilization: { iterations: 200 },
+        barnesHut: {
+          gravitationalConstant: -5000,
+          centralGravity: 0.3,
+          springLength: 100,
+          springConstant: 0.04,
+          damping: 0.09
+        }
+      },
+      interaction: {
+        hover: true,
+        zoomView: true,
+        dragView: true,
+        tooltipDelay: 100
+      },
+      layout: { improvedLayout: true }
+    });
+
+    network.on("click", function(params) {
+      if (params.nodes.length > 0) {
+        const node = allNodes.get(params.nodes[0]);
+        showNodeInfo(node);
+      } else {
+        document.getElementById("node-info").style.display = "none";
+      }
+    });
+
+    network.on("stabilized", function() {
+      network.setOptions({ physics: { enabled: false } });
+      physicsEnabled = false;
+      document.getElementById("toggle-physics").textContent = "Resume Physics";
+    });
+  }
+
+  function showNodeInfo(node) {
+    const box = document.getElementById("node-info");
+    const title = document.getElementById("node-info-title");
+    const table = document.getElementById("node-info-table");
+    title.textContent = node.label.replace('\n', ' — ');
+    table.innerHTML = "";
+    const props = node.properties || {};
+    for (const [k, v] of Object.entries(props)) {
+      if (!v || v === "" || v === "null") continue;
+      const row = document.createElement("tr");
+      row.innerHTML = `<td>${k}</td><td>${v}</td>`;
+      table.appendChild(row);
+    }
+    box.style.display = "block";
+  }
+
+  function zoomIn() { if (network) network.moveTo({ scale: network.getScale() * 1.3 }); }
+  function zoomOut() { if (network) network.moveTo({ scale: network.getScale() * 0.7 }); }
+
+  document.getElementById("toggle-physics").onclick = function() {
+    physicsEnabled = !physicsEnabled;
+    if (network) network.setOptions({ physics: { enabled: physicsEnabled } });
+    this.textContent = physicsEnabled ? "Pause Physics" : "Resume Physics";
+  };
+
+  async function sendMessage() {
+    const input = document.getElementById("user-input");
+    const msg = input.value.trim();
+    if (!msg) return;
+    input.value = "";
+    document.getElementById("send-btn").disabled = true;
+    document.getElementById("typing").style.display = "flex";
+    document.getElementById("status-bar") && (document.querySelector(".status-bar").innerHTML = '<div class="status-dot" style="background:#f59e0b"></div> Analyzing...');
+
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: msg })
+      });
+      const data = await res.json();
+      addBotMessage(data.response);
+    } catch(e) {
+      addBotMessage("Something went wrong. Please try again.");
+    }
+
+    document.getElementById("send-btn").disabled = false;
+    document.getElementById("typing").style.display = "none";
+    document.querySelector(".status-bar").innerHTML = '<div class="status-dot"></div> Dodge AI is awaiting instructions';
+  }
+
+  function addBotMessage(text) {
+    const messages = document.getElementById("messages");
+    const div = document.createElement("div");
+    div.className = "msg bot";
+    const lines = text.split('\n').filter(l => l.trim());
+    let html = '';
+    lines.forEach(line => {
+      if (line.startsWith('- ') || line.startsWith('• ')) {
+        html += `<div class="bullet">${line.substring(2)}</div>`;
+      } else {
+        html += `<div style="margin-bottom:3px">${line}</div>`;
+      }
+    });
+    div.innerHTML = html;
+    messages.appendChild(div);
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  function askSuggestion(text) {
+    document.getElementById("user-input").value = text;
+    sendMessage();
+  }
+
+  document.getElementById("user-input").addEventListener("keydown", e => {
+    if (e.key === "Enter") sendMessage();
+  });
+
+
+  document.addEventListener("DOMContentLoaded", loadGraph);
+
+  function toggleDark() {
+  document.body.classList.toggle("dark");
+  }
+</script>
+</body>
+</html>
