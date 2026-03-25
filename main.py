@@ -6,10 +6,8 @@ import sqlite3
 from groq import Groq
 import os
 from dotenv import load_dotenv
-
 load_dotenv()
-
-client = Groq(api_key="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")
+client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 app = FastAPI()
 
